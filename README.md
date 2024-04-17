@@ -1,4 +1,26 @@
-# PowerDNS-Admin
+# PowerDNS-Admin - with native support for IPv6 and TLS
+This Project is a fork of https://github.com/PowerDNS-Admin/PowerDNS-Admin/ with some additions regarding support of native IPv6 and TLS / SSL / HTTPS
+
+## What this is all about
+Running an IPv6 native application is getting more an more important as IPv4-Adresses are rare already and sometimes there is even a cost penalty. Therefore I had the idea to switch over to IPv6, as I get a whole /64 network for no addtional cost.
+However there are some things to consider as IPv6 will give you direct access (end-to-end) and expose the application via unsecured HTTP if you don't do anything about it.
+
+### Switching to IPv6 and provide a fallback for IPv4-clients
+
+Support in Docker for IPv6 is not fully developed yet, but the current status allows to work when a static IPv6-range is available (what is always helpful when talking about DNS anyway). Starting a container with IPv6 enabled is well documented, so I will not get in details about this here. All change required to the startup of PowerDNS-Admin is to set the `BIND_ADDRESS` to `[::]:443` where `[::]` is the IPv6 equivilant of `0.0.0.0` or bind-to-any-ip-available and port 443 is the default port for HTTPS (see below why you should use HTTPS in case of IPv6, if you start out to experiment you might as well use HTTP on port 80 instead).
+
+Using IPv6 natively in Docker enables you to get rid of the need for a reverse-proxy configuration or load-balancer. For most of the use cases I encountered, adding this extra layer is a bit over the top. However you will need such a solution if you want to provide backward compatible IPv4-Access with only a single external IPv4 address available on the host maschine: Keep in mind that most load balancer software is IPv6 aware by now and will basically do a repackaging of incoming IPv4 traffic to IPv6 to contact the application and do the same thing in reverse to deliver the response to an IPv4 client.
+
+### Securing the communication - background
+With the default settings PowerDNS only uses HTTP only (bound to port 80) and the most common advice is: "stick it behind a reverse proxy which will take care of HTTPS". While this is true for IPv4 and Docker using a private network, it does not hold true when using IPv6 or when you are already part of an internal network in your company and your docker-network is just a small subnet directly exposed.
+
+PowerDNS-Admin features a login, secured by passwords and optinally an OTP-Token. So it is definitly not advisable to use the application without the use of Transport Layer Security enabled (commonly called HTTPS).
+With the help of letsencrypt its no big deal to get certificates today and HTTPS should be used in anything that is not a local development system, therefore: If you choose IPv6, you almost certainly also want to have HTTPS enabled.
+
+### Make use of TLS / HTTPS in PowerDNS-Admin
+Getting PowerDNS-Admin to run with TLS support in gunicorn enabled is only a few lines of changes to the entrypoint-script. Keep in mind that it is up to you to keept the Files up to date and you need to somehow provision those to the container, using a volume or bind-mount.
+
+# Below is the original description of PowerDNS-Admin
 
 A PowerDNS web interface with advanced features.
 
