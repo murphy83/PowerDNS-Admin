@@ -1,0 +1,35 @@
+### Remeber to set the variables for use with docker compose for example using an .env file
+services:
+  app:
+    image: powerdnsadmin/pda-legacy:latest
+    container_name: powerdns_admin
+#Remember: Ports in docker compose are only used to automatically create an IPv4 forwarding, we are using IPv6, so no need to add such rules her
+#    ports:
+#      - "9191:80"
+    restart: "unless-stopped"
+    environment:
+      
+    networks:
+      dns:
+        # You may use any valid suffix for the container, I decided to use "5" here, everything is fine as long as it complies with the Prefix and the Prefix-Length
+        ipv6_address: ${NETWORK_IPV6_PREFIX}::5
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+    environment:
+      - SQLALCHEMY_DATABASE_URI="mysql://${DATABASE_USER}:${DATABASE_PASS}@${DATABASE_HOST}/${DATABASE_NAME}"
+      - BIND_ADDRESS="[::]:443"
+      - GUNICORN_TIMEOUT=60
+      - GUNICORN_WORKERS=2
+      - GUNICORN_LOGLEVEL=DEBUG
+### 
+networks:
+  dns:
+    enable_ipv6: true
+    name: ${NETWORK_NAME:-dns}
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${NETWORK_IPV6_PREFIX}::/{$NETWORK_IPV6_PREFIX_LENGTH}
