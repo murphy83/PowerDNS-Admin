@@ -1,4 +1,4 @@
-FROM alpine:3.17 AS builder
+FROM python:alpine AS builder
 
 ARG BUILD_DEPENDENCIES="build-base \
     libffi-dev \
@@ -21,8 +21,8 @@ ENV LC_ALL=en_US.UTF-8 \
 # py3-pip should not belong to BUILD_DEPENDENCIES. Otherwise, when we remove
 # them with "apk del" at the end of build stage, the python requests module
 # will be removed as well - (Tested with alpine:3.12 and python 3.8.5).
-RUN apk add --no-cache ${BUILD_DEPENDENCIES} && \
-    apk add --no-cache py3-pip
+RUN apk add --no-cache ${BUILD_DEPENDENCIES}  
+    #apk add --no-cache py3-pip
 
 WORKDIR /build
 
@@ -37,10 +37,10 @@ RUN pip install --upgrade pip && \
 COPY . /build
 
 # Prepare assets
-RUN yarn install --pure-lockfile --production && \
-    yarn cache clean && \
-    sed -i -r -e "s|'rcssmin',\s?'cssrewrite'|'rcssmin'|g" /build/powerdnsadmin/assets.py && \
-    flask assets build
+RUN yarn install --pure-lockfile --production 
+RUN yarn cache clean 
+RUN sed -i -r -e "s|'rcssmin',\s?'cssrewrite'|'rcssmin'|g" /build/powerdnsadmin/assets.py
+RUN flask assets build
 
 RUN mv /build/powerdnsadmin/static /tmp/static && \
     mkdir /build/powerdnsadmin/static && \
@@ -68,23 +68,25 @@ RUN mkdir -p /app && \
     cp -r /build/configs/docker_config.py /app/configs
 
 # Build image
-FROM alpine:3.17
+FROM python:alpine
 
 ENV FLASK_APP=/app/powerdnsadmin/__init__.py \
     USER=pda
 
-RUN apk add --no-cache mariadb-connector-c postgresql-client py3-gunicorn py3-pyldap py3-flask py3-psycopg2 xmlsec tzdata libcap && \
+RUN apk add --no-cache mariadb-connector-c postgresql-client xmlsec tzdata libcap curl libldap && \
     addgroup -S ${USER} && \
     adduser -S -D -G ${USER} ${USER} && \
     mkdir /data && \
     chown ${USER}:${USER} /data && \
-    setcap cap_net_bind_service=+ep $(readlink -f /usr/bin/python3) && \
+    setcap cap_net_bind_service=+ep $(readlink -f /usr/local/bin/python3) && \
     apk del libcap
 
-COPY --from=builder /usr/bin/flask /usr/bin/
-COPY --from=builder /usr/lib/python3.10/site-packages /usr/lib/python3.10/site-packages/
+COPY --from=builder /usr/local/bin/flask /usr/bin/
+COPY --from=builder /usr/local/bin/gunicorn /usr/local/bin/gunicorn
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages/
 COPY --from=builder --chown=root:${USER} /app /app/
 COPY ./docker/entrypoint.sh /usr/bin/
+COPY ./docker/healthcheck.sh /usr/bin/
 
 WORKDIR /app
 RUN chown ${USER}:${USER} ./configs /app && \
@@ -92,6 +94,6 @@ RUN chown ${USER}:${USER} ./configs /app && \
 
 EXPOSE 80/tcp
 USER ${USER}
-HEALTHCHECK --interval=5s --timeout=5s --start-period=20s --retries=5 CMD wget --output-document=- --quiet --tries=1 http://127.0.0.1${SCRIPT_NAME:-/}
+HEALTHCHECK --interval=5s --timeout=5s --start-period=20s --retries=5 CMD healthcheck.sh
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["gunicorn","powerdnsadmin:create_app()"]
